@@ -1,6 +1,10 @@
-from fastapi import FastAPI
-from pydantic import BaseModel
+from fastapi import FastAPI, Form
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
+from transformers import pipeline
+
+# Load the emotion classification pipeline
+emotion_classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", return_all_scores=True)
 
 app = FastAPI()
 
@@ -12,30 +16,18 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class EmotionInput(BaseModel):
-    text: str
-
 @app.post("/reflect")
 def reflect_emotion(text: str = Form(...)):
-    # Simple dummy logic
-    if "happy" in text.lower():
-        return {"emotion": "Happy 😊"}
-    else:
-        return {"emotion": "Neutral 😐"}
+    predictions = emotion_classifier(text)[0]
+    # Get top prediction
+    top_emotion = max(predictions, key=lambda x: x['score'])
+    return {
+        "emotion": top_emotion['label'],
+        "confidence": round(top_emotion['score'], 2)
+    }
 
-from fastapi.responses import HTMLResponse
-
-@app.get("/", response_class=HTMLResponse)
+@app.get("/")
 def read_root():
-    return """
-    <html>
-        <head>
-            <title>Emotion Reflection API</title>
-        </head>
-        <body style="font-family: sans-serif; text-align: center; padding: 50px;">
-            <h1>🚀 Emotion Reflection API</h1>
-            <p>This is a backend service for analyzing emotional reflections.</p>
-            <p>Use the <a href="/docs">Swagger UI</a> to test the API.</p>
-        </body>
-    </html>
-    """
+    return {
+        "message": "Emotion Reflection API running!"
+    }
