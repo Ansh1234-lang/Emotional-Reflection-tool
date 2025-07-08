@@ -1,14 +1,13 @@
 from fastapi import FastAPI, Form
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
 from transformers import pipeline
+import logging
 
-# Load the emotion classification pipeline
-emotion_classifier = pipeline("text-classification", model="j-hartmann/emotion-english-distilroberta-base", return_all_scores=True)
+# Load sentiment analysis pipeline once
+sentiment_analyzer = pipeline("sentiment-analysis")
 
 app = FastAPI()
 
-# Enable CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["http://localhost:3000"],
@@ -16,18 +15,17 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+logging.basicConfig(level=logging.INFO)
+
 @app.post("/reflect")
 def reflect_emotion(text: str = Form(...)):
-    predictions = emotion_classifier(text)[0]
-    # Get top prediction
-    top_emotion = max(predictions, key=lambda x: x['score'])
-    return {
-        "emotion": top_emotion['label'],
-        "confidence": round(top_emotion['score'], 2)
-    }
+    result = sentiment_analyzer(text)[0]  # e.g., {'label': 'POSITIVE', 'score': 0.9998}
 
-@app.get("/")
-def read_root():
-    return {
-        "message": "Emotion Reflection API running!"
-    }
+    if result["label"] == "POSITIVE":
+        emotion = "Positive 🙂"
+    elif result["label"] == "NEGATIVE":
+        emotion = "Negative 😞"
+    else:
+        emotion = "Neutral 😐"
+
+    return {"emotion": f"{emotion} (Confidence: {round(result['score'] * 100, 2)}%)"}
